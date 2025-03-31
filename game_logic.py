@@ -2,23 +2,34 @@ class Board:
     def __init__(self, row=6, col=8):
         self.row = row
         self.col = col
-        self.board = [['w' for _ in range(self.col)] for _ in range(self.row)]  
-
+        self.board = [['w' for _ in range(self.col)] for _ in range(self.row)]
+        self.ships_count = 0  # Total ship cells count
+        self.hit_count = 0    # Total successful hits count
+         
     def print_board(self, hide_ships=False, is_enemy=False):
-        """چاپ برد، اگر hide_ships=True باشد، کشتی‌های حریف را نشان نمی‌دهد.
-           اگر is_enemy=True باشد، فقط شلیک‌های موفق (S) و ناموفق (M) نشان داده می‌شوند.
-        """
         for row in self.board:
             if is_enemy:
                 print(' '.join(['S' if cell == 'H' else 'M' if cell == 'M' else 'w' for cell in row]))
             elif hide_ships:
-                print(' '.join(['w' if cell == 'S' else cell for cell in row]))  
+                print(' '.join(['w' if cell == 'S' else cell for cell in row]))
             else:
                 print(' '.join(row))
         print("\n")
 
+    def get_board_state(self, hide_ships=False):
+        """Get board state for network transmission"""
+        state = []
+        for row in self.board:
+            if hide_ships:
+                state.append(['w' if cell == 'S' else cell for cell in row])
+            else:
+                state.append(row[:])
+        return state
+
     def is_valid_position(self, size, direction, x, y):
-        """بررسی معتبر بودن مکان کشتی"""
+        """Check if ship placement is valid"""
+        if not (0 <= x < self.row and 0 <= y < self.col):
+            return False
         if direction == 'h' and y + size > self.col:
             return False
         if direction == 'v' and x + size > self.row:
@@ -31,63 +42,70 @@ class Board:
         return True
 
     def ship_installation(self, size, direction, start_point):
-        """قرار دادن کشتی در برد"""
+        """Place a ship on the board"""
         x, y = start_point
         if not self.is_valid_position(size, direction, x, y):
             print("❌ You can't place the ship here!")
+            return False
         else:
             for i in range(size):
                 if direction == 'h':
                     self.board[x][y + i] = 'S'
                 else:
                     self.board[x + i][y] = 'S'
+            self.ships_count += size
+            return True
 
     def shoot(self, x, y):
-        """شلیک به برد"""
+        """Process a shot at coordinates (x,y)"""
         if not (0 <= x < self.row and 0 <= y < self.col):  
             print("🚫 Out of Bounds! Try again.")
-            return None  # مقدار None یعنی بازیکن باید دوباره وارد کند.
-        
+            return None  # player should shoot again
+
         if self.board[x][y] == 'S':
             self.board[x][y] = 'H'
+            self.hit_count += 1
             print("🎯 Hit! You get another turn!")
-            return True  
-        
+            return True  # player should shoot again
+
         elif self.board[x][y] == 'w':
             self.board[x][y] = 'M'
             print("❌ Miss! Next player's turn.")
-            return False
-        
+            return False # Next player's turn
+
         else:
             print("⚠️ Already shot here! Try again.")
-            return None  # دوباره باید مختصات وارد شود.
+            return None # player should shoot again
+            
+    def has_ships(self):
+        """Check if the board has any ships placed"""
+        return self.ships_count > 0
+        
+    def all_ships_sunk(self):
+        """Check if all ships on the board have been sunk"""
+        return self.ships_count > 0 and self.hit_count >= self.ships_count
 
 
 class Game:
+    
     def __init__(self):
         self.player1_board = Board()
         self.player2_board = Board()
-        self.current_player = 1  
+        self.current_player = 1
 
     def print_boards(self):
-        """نمایش برد بازیکن فعال و نمایش محدود شده از برد حریف"""
+        """Display the active player's board and a limited view of opponent's board"""
         if self.current_player == 1:
             print("🔵 Player 1's Board:")
-            self.player1_board.print_board()
-            print("🔴 Player 2's Board (Hidden):")
             self.player2_board.print_board(is_enemy=True)
         else:
             print("🔴 Player 2's Board:")
-            self.player2_board.print_board()
-            print("🔵 Player 1's Board (Hidden):")
             self.player1_board.print_board(is_enemy=True)
 
     def switch_turn(self):
-        """تغییر نوبت بازیکنان"""
         self.current_player = 2 if self.current_player == 1 else 1
 
     def play_turn(self):
-        """مدیریت یک نوبت بازی"""
         while True:
             print(f"\n🎯 Player {self.current_player}'s Turn!")
             self.print_boards()
@@ -102,28 +120,17 @@ class Game:
                     else:
                         result = self.player1_board.shoot(x, y)
 
-                    if result is not None:  # اگر None نباشد، یعنی مقدار صحیح وارد شده
+                    if result is not None:   
                         break
 
                 except ValueError:
                     print("⚠️ Invalid input! Please enter numbers.")
 
-            if not result:  # اگر `False` باشد، یعنی نوبت عوض شود
+            if not result: 
                 self.switch_turn()
                 break
 
     def start_game(self):
-        """اجرای بازی"""
         print("🎮 Battleship Game Started!")
         while True:
             self.play_turn()
-
-
-# --- اجرای بازی ---
-game = Game()
-game.player1_board.ship_installation(3, 'h', (2, 3))  
-game.player1_board.ship_installation(2, 'v', (0, 7))
-game.player2_board.ship_installation(3, 'v', (1, 2))  
-game.player2_board.ship_installation(2, 'h', (4, 5))
-
-game.start_game()
